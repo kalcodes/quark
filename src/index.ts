@@ -6,30 +6,31 @@ type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Handler = (request: Request) => Promise<HandlerResult> | HandlerResult;
 type HandlerResult = Response | Object | string | number | void;
 type RouteHandlerMap = Map<string, { [M in Method]?: Handler }>;
+type QuarkOptions = {
+  notFoundHandler?: Handler;
+};
 
 class Quark {
-  baseUrl?: string;
+  baseUrl?: string | null;
   handlers: RouteHandlerMap;
+  notFoundHandler?: Handler;
 
-  constructor(baseUrl?: string) {
+  constructor(baseUrl?: string | null, options?: QuarkOptions) {
     this.handlers = new Map();
     this.baseUrl = baseUrl;
+    this.notFoundHandler = options?.notFoundHandler;
   }
 
   _normalize(path: string, base?: boolean) {
-    let fullPath = path;
+    const normPath =
+      this.baseUrl && base ? `/${this.baseUrl}/${path}/` : `/${path}/`;
 
-    if (this.baseUrl && base) {
-      fullPath = `/${this.baseUrl}/${path}/`;
-    } else {
-      fullPath = `/${path}/`;
-    }
-    return fullPath.replace(/\/{2,}/g, "/");
+    return normPath.replace(/\/{2,}/g, "/");
   }
 
   _registerRoute(path: string, method: Method, callback: Handler) {
     const normPath = this._normalize(path, true);
-    const handlers = this.handlers.get(path);
+    const handlers = this.handlers.get(normPath);
 
     if (handlers && method in handlers)
       throw new Error(`Handler for "${method} - ${path}" already registered!`);
@@ -40,41 +41,54 @@ class Quark {
     });
   }
 
+  _resolver = async (
+    result: Promise<HandlerResult> | HandlerResult,
+  ): Promise<Response> => {
+    if (result instanceof Promise) {
+      result = (await result) as HandlerResult;
+    }
+
+    // Return result as response
+    if (result instanceof Response) return result;
+
+    const resultType = typeof result;
+    // Return HTTP status code
+    if (resultType === "number") {
+      return new Response(null, { status: result as number });
+    }
+
+    // Return content-type: application/json
+    if (resultType === "object")
+      return new Response(JSON.stringify(result) as string, {
+        headers: { "content-type": "application/json" },
+      });
+
+    // Return content-type: text/plain
+    if (["string", "bigint", "boolean"].includes(resultType))
+      return new Response(String(result), {
+        headers: { "content-type": "text/plain" },
+      });
+
+    // Return HTTP 200
+    return new Response();
+  };
+
   fetch = async (request: Request) => {
     const { url, method } = request;
     let { pathname } = new URL(url);
 
     const route = this.handlers.get(this._normalize(pathname)) || {};
     const handler = route[method as Method];
-    if (!handler) return new Response("Not Found", { status: 404 });
 
-    let result = handler(request);
-    if (result instanceof Promise) {
-      result = (await result) as HandlerResult;
+    if (handler) {
+      let result = handler(request);
+      return await this._resolver(result);
     }
 
-    if (result instanceof Response) {
-      return result;
-    }
-
-    const resultType = typeof result;
-    switch (resultType) {
-      case "undefined":
-        return new Response();
-
-      case "number":
-        return new Response(null, { status: result as number });
-
-      case "string":
-        return new Response(result as string, {
-          headers: { "Content-Type": "text/plain" },
-        });
-
-      case "object":
-        return new Response(JSON.stringify(result), {
-          headers: { "Content-Type": "application/json" },
-        });
-    }
+    // Handle Unknown Routes
+    if (this.notFoundHandler)
+      return await this._resolver(this.notFoundHandler(request));
+    else return new Response(null, { status: 404 });
   };
 
   get(path: string, handler: Handler) {
