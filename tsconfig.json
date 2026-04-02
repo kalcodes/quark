@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "strict": true,
+
+    // Output Configuration
+    "outDir": "dist/",
+    "noEmit": false,
+    "declaration": true
+  },
+  "include": ["src/"]
+}

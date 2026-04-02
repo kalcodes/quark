@@ -1,0 +1,36 @@
+{
+  "name": "quark",
+  "version": "1.0.0",
+  "description": "Tiny edge API wrapper.",
+  "main": "index.js",
+  "type": "module",
+  "types": "index.d.ts",
+  "scripts": {
+    "buld": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "kalcodes",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kalcodes/quark.git"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  },
+  "keywords": [
+    "api",
+    "workers",
+    "cloudflare",
+    "quark",
+    "minimalist",
+    "router",
+    "edge"
+  ],
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "packageManager": "pnpm@10.33.0"
+}
