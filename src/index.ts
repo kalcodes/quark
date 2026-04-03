@@ -2,9 +2,9 @@
 // Authored by: kalcodes
 // ----------------------------------------------------------
 
-type Method = "GET" | "POST" | "PUT" | "UPDATE" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type Handler = (request: Request) => Promise<HandlerResult> | HandlerResult;
-type HandlerResult = Response | Object | string | void;
+type HandlerResult = Response | Object | string | number | void;
 type RouteHandlerMap = Map<string, { [M in Method]?: Handler }>;
 
 class Quark {
@@ -27,7 +27,20 @@ class Quark {
     return fullPath.replace(/\/{2,}/g, "/");
   }
 
-  _fetch = async (request: Request) => {
+  _registerRoute(path: string, method: Method, callback: Handler) {
+    const normPath = this._normalize(path, true);
+    const handlers = this.handlers.get(path);
+
+    if (handlers && method in handlers)
+      throw new Error(`Handler for "${method} - ${path}" already registered!`);
+
+    this.handlers.set(normPath, {
+      ...handlers,
+      [method]: callback,
+    });
+  }
+
+  fetch = async (request: Request) => {
     const { url, method } = request;
     let { pathname } = new URL(url);
 
@@ -49,6 +62,9 @@ class Quark {
       case "undefined":
         return new Response();
 
+      case "number":
+        return new Response(null, { status: result as number });
+
       case "string":
         return new Response(result as string, {
           headers: { "Content-Type": "text/plain" },
@@ -61,18 +77,6 @@ class Quark {
     }
   };
 
-  _registerRoute(path: string, method: Method, callback: Handler) {
-    const handlers = this.handlers.get(path);
-
-    if (handlers && method in handlers)
-      throw new Error(`Handler for "${method} - ${path}" already registered!`);
-
-    this.handlers.set(this._normalize(path, true), {
-      ...handlers,
-      [method]: callback,
-    });
-  }
-
   get(path: string, handler: Handler) {
     this._registerRoute(path, "GET", handler);
   }
@@ -82,8 +86,8 @@ class Quark {
   put(path: string, handler: Handler) {
     this._registerRoute(path, "PUT", handler);
   }
-  update(path: string, handler: Handler) {
-    this._registerRoute(path, "UPDATE", handler);
+  patch(path: string, handler: Handler) {
+    this._registerRoute(path, "PATCH", handler);
   }
   delete(path: string, handler: Handler) {
     this._registerRoute(path, "DELETE", handler);
